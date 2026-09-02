@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catraca ANPR</title>
+<style>
+  :root { --bg:#0f1115; --card:#1a1e26; --line:#2a3040; --tx:#e8eaf0; --mut:#8a92a6;
+          --ok:#2ecc71; --no:#e74c3c; --ac:#4ea1ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx);
+         font:14px/1.5 system-ui, -apple-system, sans-serif; }
+  header { padding:16px 20px; border-bottom:1px solid var(--line);
+           display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:18px; margin:0; }
+  header small { color:var(--mut); }
+  main { max-width:920px; margin:0 auto; padding:16px 20px 60px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+           gap:10px; margin-bottom:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:12px 14px; }
+  .card b { display:block; font-size:22px; }
+  .card span { color:var(--mut); font-size:12px; }
+  h2 { font-size:15px; margin:22px 0 10px; }
+  .ev { display:flex; gap:12px; align-items:center; background:var(--card);
+        border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; }
+  .ev img { width:96px; height:64px; object-fit:cover; border-radius:6px; background:#000; }
+  .plate { font-family:ui-monospace, monospace; font-size:16px; font-weight:700; }
+  .tag { font-size:11px; padding:2px 8px; border-radius:20px; font-weight:600; }
+  .tag.ok { background:rgba(46,204,113,.15); color:var(--ok); }
+  .tag.no { background:rgba(231,76,60,.15); color:var(--no); }
+  .tag.fb { background:rgba(78,161,255,.15); color:var(--ac); }
+  .meta { color:var(--mut); font-size:12px; }
+  .wl-row { display:flex; justify-content:space-between; align-items:center;
+            background:var(--card); border:1px solid var(--line); border-radius:8px;
+            padding:8px 12px; margin-bottom:6px; }
+  input { background:#12151c; color:var(--tx); border:1px solid var(--line);
+          border-radius:8px; padding:8px 10px; font-size:14px; }
+  button { background:var(--ac); color:#fff; border:0; border-radius:8px;
+           padding:8px 14px; font-size:14px; cursor:pointer; }
+  button.rm { background:transparent; color:var(--no); border:1px solid var(--line); }
+  form { display:flex; gap:8px; margin:10px 0 16px; flex-wrap:wrap; }
+  #status { color:var(--mut); font-size:12px; }
+  .alert { background:rgba(231,76,60,.12); border:1px solid var(--no); color:var(--tx);
+           border-radius:10px; padding:10px 14px; margin-bottom:10px; }
+  .alert b { color:var(--no); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Catraca ANPR</h1>
+  <small>Raspberry Pi 4 · leitor de placas</small>
+  <span id="status" style="margin-left:auto"></span>
+</header>
+<main>
+  <div id="alerts"></div>
+  <div class="cards">
+    <div class="card"><b id="st-total">–</b><span>eventos hoje</span></div>
+    <div class="card"><b id="st-ok" style="color:var(--ok)">–</b><span>autorizados</span></div>
+    <div class="card"><b id="st-no" style="color:var(--no)">–</b><span>negados</span></div>
+    <div class="card"><b id="st-fb" style="color:var(--ac)">–</b><span>% via fallback</span></div>
+  </div>
+
+  <h2>Whitelist</h2>
+  <form id="wl-form">
+    <input id="wl-plate" placeholder="Placa (ABC1D23)" maxlength="8" required>
+    <input id="wl-name" placeholder="Nome" required>
+    <button type="submit">Adicionar</button>
+  </form>
+  <div id="wl-list"></div>
+
+  <h2>Últimos acessos</h2>
+  <div id="timeline"></div>
+</main>
+<script>
+let KEY = localStorage.getItem("api_key") || "";
+const H = () => ({ "X-API-Key": KEY, "Content-Type": "application/json" });
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { ...H(), ...(opts.headers || {}) } });
+  if (r.status === 401) {
+    KEY = prompt("API key do serviço:") || "";
+    localStorage.setItem("api_key", KEY);
+    if (KEY) return api(path, opts);
+    throw new Error("sem key");
+  }
+  return r;
+}
+
+async function photoSrc(url) {
+  const r = await api(url);
+  return URL.createObjectURL(await r.blob());
+}
+
+function fmt(ts) {
+  return new Date(ts).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+async function refreshEvents() {
+  const evs = await (await api("/api/events?limit=30")).json();
+  const today = new Date().toDateString();
+  const todays = evs.filter(e => new Date(e.ts).toDateString() === today);
+  document.getElementById("st-total").textContent = todays.length;
+  document.getElementById("st-ok").textContent = todays.filter(e => e.authorized).length;
+  document.getElementById("st-no").textContent = todays.filter(e => !e.authorized).length;
+  document.getElementById("st-fb").textContent = todays.length
+    ? Math.round(100 * todays.filter(e => e.used_fallback).length / todays.length) + "%" : "0%";
+
+  // alerta: mesma placa negada 3+ vezes na última hora
+  const hourAgo = Date.now() - 3600 * 1000;
+  const deniedCount = {};
+  for (const e of evs) {
+    if (!e.authorized && new Date(e.ts).getTime() >= hourAgo) {
+      deniedCount[e.plate] = (deniedCount[e.plate] || 0) + 1;
+    }
+  }
+  const alerts = document.getElementById("alerts");
+  alerts.innerHTML = "";
+  for (const [plate, n] of Object.entries(deniedCount)) {
+    if (n >= 3) {
+      const d = document.createElement("div");
+      d.className = "alert";
+      d.innerHTML = `⚠️ <b>${plate}</b> teve <b>${n} tentativas negadas</b> na última hora.`;
+      alerts.appendChild(d);
+    }
+  }
+
+  const tl = document.getElementById("timeline");
+  tl.innerHTML = evs.length ? "" : "<p class='meta'>Nenhum evento ainda.</p>";
+  for (const e of evs) {
+    const div = document.createElement("div");
+    div.className = "ev";
+    div.innerHTML = `
+      <img alt="foto do evento">
+      <div>
+        <div><span class="plate">${e.plate}</span>
+          <span class="tag ${e.authorized ? "ok" : "no"}">${e.authorized ? "LIBERADO" : "NEGADO"}</span>
+          ${e.used_fallback ? '<span class="tag fb">FALLBACK</span>' : ""}</div>
+        <div class="meta">${fmt(e.ts)} · confiança ${(e.ocr_confidence * 100).toFixed(0)}%</div>
+      </div>`;
+    tl.appendChild(div);
+    photoSrc(e.photo_url).then(src => { div.querySelector("img").src = src; });
+  }
+}
+
+async function refreshWl() {
+  const body = await (await api("/api/whitelist?since=-1")).json();
+  const el = document.getElementById("wl-list");
+  el.innerHTML = (body.plates || []).length ? "" : "<p class='meta'>Whitelist vazia.</p>";
+  for (const p of body.plates || []) {
+    const row = document.createElement("div");
+    row.className = "wl-row";
+    row.innerHTML = `<span><span class="plate">${p.plate}</span>
+      <span class="meta"> ${p.name}</span></span>`;
+    const rm = document.createElement("button");
+    rm.className = "rm";
+    rm.textContent = "remover";
+    rm.onclick = async () => { await api(`/api/whitelist/${p.plate}`, { method: "DELETE" }); refreshAll(); };
+    row.appendChild(rm);
+    el.appendChild(row);
+  }
+}
+
+document.getElementById("wl-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const plate = document.getElementById("wl-plate").value;
+  const name = document.getElementById("wl-name").value;
+  const r = await api("/api/whitelist", { method: "POST", body: JSON.stringify({ plate, name }) });
+  if (r.status === 422) { alert("Placa inválida (use ABC1D23 ou ABC1234)"); return; }
+  ev.target.reset();
+  refreshAll();
+};
+
+async function refreshAll() {
+  try {
+    await Promise.all([refreshEvents(), refreshWl()]);
+    document.getElementById("status").textContent =
+      "atualizado " + new Date().toLocaleTimeString("pt-BR");
+  } catch (e) {
+    document.getElementById("status").textContent = "erro: " + e.message;
+  }
+}
+
+refreshAll();
+setInterval(refreshAll, 10000);
+</script>
+</body>
+</html>

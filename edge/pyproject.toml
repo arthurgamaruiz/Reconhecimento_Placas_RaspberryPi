@@ -1,0 +1,26 @@
+[project]
+name = "catraca"
+version = "0.1.0"
+description = "Leitor de placas com catraca simulada (LED/buzzer) para Raspberry Pi 4"
+requires-python = ">=3.11"
+dependencies = [
+  "fast-alpr",
+  "onnxruntime",
+  "opencv-python-headless",
+  "gpiozero",
+  "requests",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "anthropic"]
+fallback = ["anthropic"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["catraca*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

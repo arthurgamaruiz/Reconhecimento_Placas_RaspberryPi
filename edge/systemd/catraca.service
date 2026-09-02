@@ -1,0 +1,15 @@
+[Unit]
+Description=Catraca ANPR
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/catraca/edge
+EnvironmentFile=/home/pi/catraca/.env
+ExecStart=/home/pi/catraca/venv/bin/python -m catraca.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
