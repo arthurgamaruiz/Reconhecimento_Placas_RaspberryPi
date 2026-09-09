@@ -848,20 +848,20 @@ Utilize arquivos `.env` e mantenha-os no `.gitignore`.
 
 <p align="center">
   <strong>Protótipo físico</strong><br><br>
-  <img src="images/prototipo.jpeg" width="700" align="center"/><br>
+  <img src="images/projeto.jpeg" width="700" align="center"/><br>
   <em>Figura 1 — Protótipo da catraca ANPR</em>
 </p>
 
 <p align="center">
   <strong>Dashboard</strong><br><br>
-  <img src="images/dashboard.png" width="700" align="center"/><br>
+  <img src="images/dashboard.jpeg" width="700" align="center"/><br>
   <em>Figura 2 — Dashboard de monitoramento</em>
 </p>
 
 <p align="center">
   <strong>Arquitetura do sistema</strong><br><br>
-  <img src="images/arquitetura.png" width="700" align="center"/><br>
-  <em>Figura 3 — Arquitetura edge → cloud</em>
+  <img src="images/equipe.jpeg" width="700" align="center"/><br>
+  <em>Figura 3 — Equipe desenvolvedora</em>
 </p>
 
 ### ▶ Vídeo de Apresentação
