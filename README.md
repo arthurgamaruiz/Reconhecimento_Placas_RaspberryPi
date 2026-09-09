@@ -866,11 +866,7 @@ Utilize arquivos `.env` e mantenha-os no `.gitignore`.
 
 ### ▶ Vídeo de Apresentação
 
-[Assista ao vídeo de apresentação do projeto](#)
-
-> Substituir o link acima pelo vídeo de apresentação quando disponível.
-
----
+[Apresentação](/video/video-apresentacao.mp4)
 
 ## 18. ◈ Tecnologias Utilizadas
 
