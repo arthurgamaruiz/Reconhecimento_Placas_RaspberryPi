@@ -866,7 +866,7 @@ Utilize arquivos `.env` e mantenha-os no `.gitignore`.
 
 ### ▶ Vídeo de Apresentação
 
-[Apresentação](/video/video-apresentacao.mp4)
+[Apresentação](https://youtu.be/ipiQR3mWvp4)
 
 ## 18. ◈ Tecnologias Utilizadas
 
